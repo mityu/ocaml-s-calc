@@ -1,5 +1,3 @@
-let program = "(+ (- 3 10) 5)";;
-
 exception Unreachable;;
 exception UnexpectedChar of string;;
 exception UnexpectedToken of string;;
@@ -88,20 +86,40 @@ let lex src =
             let ch = String.get src i in (Some ch, i+1)
     in
     let next_num i =
-        let rec next_num_impl i acc =
+        let decimal i acc =
+            let rec impl i acc divisor =
+                let may_ch, i = next_char i
+                in
+                match may_ch with
+                | None -> (acc, i)
+                | Some ch ->
+                        if is_digit ch then
+                            let acc' = acc +. (float_of_int (to_digit ch)) /. divisor
+                            in
+                            impl i acc' (divisor *. 10.0)
+                        else
+                            (acc, (i-1))
+            in
+            impl i acc 10.0
+        in
+        let rec floatnum i acc =
             let may_ch, i = next_char i
             in
             match may_ch with
             | Some ch ->
                     if is_digit ch then
-                        let acc' = acc * 10 + to_digit ch
+                        let acc' = acc *. 10.0 +. float_of_int (to_digit ch)
                         in
-                        next_num_impl i acc'
+                        floatnum i acc'
+                    else if ch == '.' then
+                        let dec, i = decimal i 0.0
+                        in
+                        (acc +. dec, i)
                     else
                         (acc, (i-1))
             | None -> (acc, i)
         in
-        next_num_impl i 0
+        floatnum i 0.0
     in
     let rec lex_impl i acc =
         let may_ch, i = next_char i
@@ -114,7 +132,7 @@ let lex src =
                 else if is_digit ch then
                     let n, i = next_num (i-1)
                     in
-                    lex_impl i (NumTok (float_of_int n) :: acc)
+                    lex_impl i (NumTok n :: acc)
                 else
                     let may_token = match ch with
                     | '(' -> Some LParen
